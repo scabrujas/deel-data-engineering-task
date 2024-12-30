@@ -10,19 +10,21 @@ Welcome to Deel's Data Engineering Take-Home task, as mentioned in the Task spec
 
 ### Database Configuration
 
-Once you have [Docker](https://www.docker.com/products/docker-desktop/) and [docker-compose](https://docs.docker.com/compose/install/) configured in your computer, with you Docker engine running you must execute the following command provision the source database
+Once you have [Docker](https://www.docker.com/products/docker-desktop/) and [docker-compose](https://docs.docker.com/compose/install/) configured in your computer, with your Docker engine running, you must execute the following command provision the source database:
+
 
 > docker-compose up
 
+
 :warning:**Important**: Before running this command make sure you're in the root folder of the project.
 
-Once you have the Database up and running feel free to connect to this using any too you want, for this you can use the following credentials:
+Once you have the Database up and running feel free to connect to this using any tool you want, for this you can use the following credentials:
 
 - **Username**: `finance_db_user`
 - **Password**: `1234`
 - **Database**: `finance_db`
 
-If you opt-in to use CDC tools, we have the following pre-set configurations in the db:
+If you opt-in to use CDC tools, we have the following pre-set configurations in the DB:
 
 - **CDC Username**: `cdc_user`
 - **CDC User Password**: `cdc_1234`
