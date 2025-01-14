@@ -310,5 +310,5 @@ SELECT cron.schedule(
 SELECT cron.schedule(
     'generate_orders',
     '*/1 * * * *',
-    $$ call generate_orders(50); $$
+    $$ call generate_orders(100); $$
 );
