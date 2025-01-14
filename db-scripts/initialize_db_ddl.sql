@@ -297,18 +297,18 @@ CREATE EXTENSION IF NOT EXISTS pg_cron;
 
 SELECT cron.schedule(
     'update_customers',
-    '*/5 * * * *',
-    $$ call update_customers(15); $$
+    '*/2 * * * *',
+    $$ call update_customers(5); $$
 );
 
 SELECT cron.schedule(
     'update_products',
-    '*/5 * * * *',
-    $$ call update_products(30); $$
+    '*/2 * * * *',
+    $$ call update_products(10); $$
 );
 
 SELECT cron.schedule(
     'generate_orders',
     '*/1 * * * *',
-    $$ call generate_orders(5); $$
+    $$ call generate_orders(50); $$
 );
