@@ -294,6 +294,7 @@ LIMIT 3;
 
 3. **Number of open pending items by PRODUCT_ID**:
 ```sql
+CREATE OR REPLACE VIEW analytics.open_pending_items_by_product AS
 SELECT
     oi.product_id,
     p.product_name,
@@ -308,7 +309,9 @@ WHERE
     oi.is_current = true
     AND o.is_current = true
     AND p.is_current = true
-    AND o.status = 'PENDING'
+    AND o.status IN ('PROCESSING', 'REPROCESSING', 'PENDING')
+	AND oi.product_id IS NOT NULL
+    AND oi.quantity > 0
 GROUP BY
     oi.product_id, p.product_name
 ORDER BY
