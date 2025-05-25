@@ -1,5 +1,5 @@
 services:
-  transactions-db:
+  source-db:
     build:
       context: ./docker/postgres-db
     environment:
@@ -12,3 +12,136 @@ services:
     ports:
       - "5432:5432"
     command: ["postgres", "-c", "wal_level=logical", "-c", "hot_standby=on"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U finance_db_user -d finance_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  target-db:
+    image: postgres:14
+    environment:
+      - POSTGRES_USER=analytics_user
+      - POSTGRES_PASSWORD=1234
+      - POSTGRES_DB=analytics_db
+    volumes:
+        - "${PWD}/db-scripts/initialize_target_db.sql:/docker-entrypoint-initdb.d/initialize_target_db.sql"
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U analytics_user -d analytics_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.4.0
+    hostname: zookeeper
+    container_name: zookeeper
+    ports:
+      - "2181:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    healthcheck:
+      test: ["CMD-SHELL", "timeout 1 bash -c '</dev/tcp/localhost/2181' && echo 'Zookeeper is up' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  kafka:
+    image: confluentinc/cp-kafka:7.4.0
+    hostname: kafka
+    container_name: kafka
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+    healthcheck:
+      test: ["CMD", "kafka-topics", "--bootstrap-server", "localhost:9092", "--list"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  debezium-connect:
+    image: debezium/connect:2.3
+    hostname: debezium-connect
+    container_name: debezium-connect
+    depends_on:
+      kafka:
+        condition: service_healthy
+      source-db:
+        condition: service_healthy
+    ports:
+      - "8083:8083"
+    environment:
+      GROUP_ID: 1
+      CONFIG_STORAGE_TOPIC: connect_configs
+      OFFSET_STORAGE_TOPIC: connect_offsets
+      STATUS_STORAGE_TOPIC: connect_statuses
+      BOOTSTRAP_SERVERS: kafka:9092
+      KEY_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      VALUE_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      KEY_CONVERTER_SCHEMAS_ENABLE: "false"
+      VALUE_CONVERTER_SCHEMAS_ENABLE: "false"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8083/connectors"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  spark-app:
+    build:
+      context: ./spark-pipeline
+    environment:
+      - SOURCE_DB_HOST=source-db
+      - SOURCE_DB_PORT=5432
+      - SOURCE_DB_USER=cdc_user
+      - SOURCE_DB_PASSWORD=cdc_1234
+      - SOURCE_DB_NAME=finance_db
+      - TARGET_DB_HOST=target-db
+      - TARGET_DB_PORT=5432
+      - TARGET_DB_USER=analytics_user
+      - TARGET_DB_PASSWORD=1234
+      - TARGET_DB_NAME=analytics_db
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+    depends_on:
+      source-db:
+        condition: service_healthy
+      target-db:
+        condition: service_healthy
+      debezium-connect:
+        condition: service_healthy
+    volumes:
+      - ./spark-pipeline/src:/app/src
+
+  analytics-api:
+    build:
+      context: ./api
+    ports:
+      - "8000:8000"
+    environment:
+      - TARGET_DB_HOST=target-db
+      - TARGET_DB_PORT=5432
+      - TARGET_DB_NAME=analytics_db
+      - TARGET_DB_USER=analytics_user
+      - TARGET_DB_PASSWORD=1234
+    depends_on:
+      target-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
