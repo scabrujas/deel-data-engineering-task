@@ -294,7 +294,6 @@ LIMIT 3;
 
 3. **Number of open pending items by PRODUCT_ID**:
 ```sql
-CREATE OR REPLACE VIEW analytics.open_pending_items_by_product AS
 SELECT
     oi.product_id,
     p.product_name,
